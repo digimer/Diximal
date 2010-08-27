@@ -1,0 +1,173 @@
+NOTE: Until this warning is removed, this program is not finished and should
+NOTE: *NOT* be used in any way, shape or form. It will probably do really bad
+NOTE: things and then you'd be mad and yell at me. :(
+
+
+=] What is it?
+
+'diximal' will read in an XML file, parse it and print the resulting data
+structure.
+
+
+=] Usage
+
+(Planned) usage:
+
+./diximal -f /path/to/file.xml
+
+
+=] Output Structure
+
+The output from 'diximal' will use the following structure:
+
+- All comments are stripped.
+
+- The XML structure is represented as:
+  - TAG::CHILD_TAG_1::CHILD_TAG_2::...::CHILD_TAG_n::attribute=value
+  All child tags will be shown as a stand-alone line with no 'attribute=value'
+  suffix. Thus, all 'attribute=value' under a given tag structure will be known
+  to belong to the preceeding tag(s).
+
+- The output will always begin with 'START' and end with 'END' on their own
+  lines. The output should not be trusted unless these are present.
+
+
+=] Example
+
+Given this XML:
+
+-------------------------------------------------------------------------------
+<?xml version="1.0"?>
+<cluster name="an-cluster" config_version="14">
+	
+	<!-- Cluster Nodes -->
+	<clusternodes>
+		<!-- AN!Cluster Node 1 -->
+		<!-- 
+		The clusternode 'name' value must match the name returned by
+		`uname -n`. The network interface with the IP address mapped to
+		this name will be the network used by the totem ring. The totem
+		ring is used for cluster communication and reconfiguration, so
+		all nodes must use network interfaces on the same network for
+		the cluster to form. For the same reason, this name must not
+		resolve to the localhost IP address (127.0.0.1/::1).
+ 
+		Optional <clusternode ...> arguments:
+		- weight="#"; This sets the DLM lock directory weight. This is
+		              a DLM kernel option.
+		-->
+		<clusternode name="an-node01.alteeve.com" nodeid="1">
+			<altname name="an-node01-sn" port="6899" 
+							mcast="239.94.1.1" />
+			<!-- Fence Devices attached to this node. -->
+			<fence>
+				<method name="node_assassin">
+					<device name="batou" port="01"
+							 action="reboot"/>
+				</method>
+			</fence>
+		</clusternode>
+ 
+		<!-- AN!Cluster Node 2 -->
+		<clusternode name="an-node02.alteeve.com" nodeid="2">
+			<altname name="an-node02-sn" port="6899"
+							 mcast="239.94.1.1" />
+			<fence>
+				<method name="node_assassin">
+					<device name="batou" port="02"
+							 action="reboot"/>
+				</method>
+			</fence>
+		</clusternode>
+	</clusternodes>
+	<!--
+	The fence device is mandatory and it defined how the cluster will
+	handle nodes that have dropped out of communication. In our case,
+	we will use the Node Assassin fence device.
+	-->
+	<fencedevices>
+		<!--
+		This names the device, the agent (script) to controls it,
+		where to find it and how to access it.
+		-->
+		<fencedevice name="batou" agent="fence_na" 
+			ipaddr="batou.alteeve.com"  login="section9" 
+			passwd="project2501" quiet="1"></fencedevice>
+		<fencedevice name="motoko" agent="fence_na" 
+			ipaddr="motoko.alteeve.com" login="section9" 
+			passwd="project2501" quiet="1"></fencedevice>
+		<!--
+		If you have two or more fence devices, you can add the extra
+		one(s) below. The cluster will attempt to fence a bad node
+		using these devices in the order that they appear.
+		-->
+	</fencedevices>
+ 
+	<!-- When the cluster starts, any nodes not yet in the cluster may be
+	fenced. By default, there is a 6 second buffer, but this isn't very
+	much time. The following argument increases the time window where other
+	nodes can join before being fenced. I like to give up to one minute but
+	the Red Hat man page suggests 20 seconds. Please do your own testing to
+	determine what time is needed for your environment.
+	-->
+	<fence_daemon post_join_delay="60">
+	</fence_daemon>
+</cluster>
+-------------------------------------------------------------------------------
+
+The output will be:
+
+-------------------------------------------------------------------------------
+START
+XML_Version=1.0
+cluster
+cluster::name=an-cluster
+cluster::config_version=14
+cluster::clusternodes
+cluster::clusternodes::clusternode
+cluster::clusternodes::clusternode::name=an-node01.alteeve.com
+cluster::clusternodes::clusternode::nodeid=1
+cluster::clusternodes::clusternode::altname
+cluster::clusternodes::clusternode::altname::name=an-node01-sn
+cluster::clusternodes::clusternode::altname::port=6899
+cluster::clusternodes::clusternode::altname::mcast=239.94.1.1
+cluster::clusternodes::clusternode::fence
+cluster::clusternodes::clusternode::fence::method
+cluster::clusternodes::clusternode::fence::method::name=node_assassin
+cluster::clusternodes::clusternode::fence::method::device
+cluster::clusternodes::clusternode::fence::method::device::name=batou
+cluster::clusternodes::clusternode::fence::method::device::port=01
+cluster::clusternodes::clusternode::fence::method::device::action=reboot
+cluster::clusternodes::clusternode
+cluster::clusternodes::clusternode::name=an-node02.alteeve.com
+cluster::clusternodes::clusternode::nodeid=2
+cluster::clusternodes::clusternode::altname
+cluster::clusternodes::clusternode::altname::name=an-node02-sn
+cluster::clusternodes::clusternode::altname::port=6899
+cluster::clusternodes::clusternode::altname::mcast="239.94.1.1
+cluster::clusternodes::clusternode::fence
+cluster::clusternodes::clusternode::fence::method
+cluster::clusternodes::clusternode::fence::method::name=node_assassin
+cluster::clusternodes::clusternode::fence::method::device
+cluster::clusternodes::clusternode::fence::method::device::name=batou
+cluster::clusternodes::clusternode::fence::method::device::port=02
+cluster::clusternodes::clusternode::fence::method::device::action=reboot
+cluster::fencedevices
+cluster::fencedevices::fencedevice
+cluster::fencedevices::fencedevice::name=batou
+cluster::fencedevices::fencedevice::agent=fence_na
+cluster::fencedevices::fencedevice::ipaddr=batou.alteeve.com
+cluster::fencedevices::fencedevice::login=section9
+cluster::fencedevices::fencedevice::passwd=project2501
+cluster::fencedevices::fencedevice::quiet=1
+cluster::fencedevices::fencedevice
+cluster::fencedevices::fencedevice::name=motoko
+cluster::fencedevices::fencedevice::agent=fence_na
+cluster::fencedevices::fencedevice::ipaddr=motoko.alteeve.com
+cluster::fencedevices::fencedevice::login=section9
+cluster::fencedevices::fencedevice::passwd=project2501
+cluster::fencedevices::fencedevice::quiet=1
+cluster::fence_daemon
+cluster::fence_daemon::post_join_delay=60
+END
+-------------------------------------------------------------------------------
