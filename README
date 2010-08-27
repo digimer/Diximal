@@ -6,7 +6,8 @@ NOTE: things and then you'd be mad and yell at me. :(
 =] What is it?
 
 'diximal' will read in an XML file, parse it and print the resulting data
-structure.
+structure. It's quite rudimentary, and as such, processing instructions and
+validation information is simply ignored.
 
 
 =] Usage
@@ -30,6 +31,9 @@ The output from 'diximal' will use the following structure:
 
 - The output will always begin with 'START' and end with 'END' on their own
   lines. The output should not be trusted unless these are present.
+
+- If any errors are found while parsing the XML, an error will be printed
+  followed by an "ERROR" on a new line.
 
 
 =] Example
@@ -119,7 +123,6 @@ The output will be:
 
 -------------------------------------------------------------------------------
 START
-XML_Version=1.0
 cluster
 cluster::name=an-cluster
 cluster::config_version=14
