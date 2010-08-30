@@ -1,3 +1,4 @@
+# Contributed by Fabio to help me not get into bad habits from the get-go.
 CC=gcc
 CFLAGS=-Wall -Werror -fPIC -Wformat=2 -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wpointer-arith -Wwrite-strings -Wcast-align -Wbad-function-cast -Wmissing-format-attribute -Wformat-security -Wformat-nonliteral -Wno-long-long -Wno-strict-aliasing -Wmissing-declarations
 LDFLAGS=
