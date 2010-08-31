@@ -90,6 +90,14 @@ not found in the cluster.conf sample file above.
         <!-- Test words. Do NOT change unless you update 't/String.t' or tests will needlessly fail. -->
                 <key name="ta_0000">Alternate Test: [#!var!0!#].</key>
                 <key name="ta_0001">This is a string <![CDATA[with a cdata tag and <example><xml string="foo" /></example> XML code]]>. So, did it work?</key>
+                <key name="ta_0002">
+This is a string. There will be a blank line after it. <![CDATA[Now
+
+a multi-spanning <!-- This isn't a comment! --> CDATA line.]]>
+
+That spans several lines. 
+It should not be messed with by the parser.
+		</key>
         </lang>
         
         <!-- 日本語; UTF-8 Test tags. -->
