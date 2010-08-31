@@ -93,9 +93,9 @@ not found in the cluster.conf sample file above.
                 <key name="ta_0002">
 This is a string. There will be a blank line after it. <![CDATA[Now
 
-a multi-spanning <!-- This isn't a comment! --> CDATA line.]]>
+a multi-spanning <!-- This isn't a comment! --> CDATA </key> </foo> line.]]>
 
-That spans several lines. 
+That            spans several lines. 
 It should not be messed with by the parser.
 		</key>
         </lang>
@@ -105,3 +105,4 @@ It should not be messed with by the parser.
                 <key name="テス_0000">代りのテスト: [#!var!0!#]。</key>
         </lang>
 </words>
+ 
