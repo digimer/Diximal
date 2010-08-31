@@ -4,18 +4,22 @@ CFLAGS=-Wall -Werror -fPIC -Wformat=2 -Wshadow -Wmissing-prototypes -Wstrict-pro
 LDFLAGS=
 
 TARGET=diximal
+TARGET_STACK=stack
 
 TARGET_DEBUG=$(TARGET)_debug
 
 all: $(TARGET) $(TARGET_DEBUG)
 
-$(TARGET): $(TARGET).o
+$(TARGET): $(TARGET).o $(TARGET_STACK).o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 $(TARGET_DEBUG): $(TARGET_DEBUG).o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 $(TARGET).o: $(TARGET).c
+	$(CC) $(CFLAGS) -O2 -c -o $@ $<
+
+$(TARGET_STACK).o: $(TARGET_STACK).c
 	$(CC) $(CFLAGS) -O2 -c -o $@ $<
 
 $(TARGET_DEBUG).o: $(TARGET).c

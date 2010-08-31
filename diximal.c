@@ -23,6 +23,9 @@ See README for usage and expected behaviour.
 // #include <stdint.h>		// Library for standard integer types (guarantees the size of an int).
 // #include <limits.h>		// Provides some integer and mathmatical functions line INT_MAX and UNIT_MAX
 
+// Include my header
+#include "stack.h"
+
 
 /* prototypes */
 void usage (char *name);
