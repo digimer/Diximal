@@ -4,25 +4,27 @@ CFLAGS=-Wall -Werror -fPIC -Wformat=2 -Wshadow -Wmissing-prototypes -Wstrict-pro
 LDFLAGS=
 
 TARGET=diximal
-TARGET_STACK=stack
 
 TARGET_DEBUG=$(TARGET)_debug
 
+SRC=diximal.c \
+    stack.c
+
+OBJS=$(SRC:.c=.o)
+OBJS_DEBUG=$(SRC:.c=_debug.o)
+
 all: $(TARGET) $(TARGET_DEBUG)
 
-$(TARGET): $(TARGET).o $(TARGET_STACK).o
+$(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-$(TARGET_DEBUG): $(TARGET_DEBUG).o
+$(TARGET_DEBUG): $(OBJS_DEBUG)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-$(TARGET).o: $(TARGET).c
+%.o: %.c
 	$(CC) $(CFLAGS) -O2 -c -o $@ $<
 
-$(TARGET_STACK).o: $(TARGET_STACK).c
-	$(CC) $(CFLAGS) -O2 -c -o $@ $<
-
-$(TARGET_DEBUG).o: $(TARGET).c
+%_debug.o: %.c
 	$(CC) $(CFLAGS) -O0 -ggdb3 -c -o $@ $<
 
 clean:
