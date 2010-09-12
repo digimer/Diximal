@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 <cluster name="an-cluster" config_version="14">
 	
+	<cman />
+	
 	<!-- Cluster Nodes -->
 	<clusternodes>
 		<!-- AN!Cluster Node 1 -->
@@ -51,7 +53,7 @@
 		This names the device, the agent (script) to controls it,
 		where to find it and how to access it.
 		-->
-		<fencedevice name="batou" agent="fence_na" 
+		<fencedevice name="batou" agent     =	 "fence_na" 
 			ipaddr="batou.alteeve.com"  login="section9" 
 			passwd="project2501" quiet="1"></fencedevice>
 		<fencedevice name="motoko" agent="fence_na" 

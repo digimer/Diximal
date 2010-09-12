@@ -140,6 +140,7 @@ typedef union xml_obj {
 void usage (char *name);
 int strip_comments(char *contents, signed long size);
 xml_obj_t * parse_xml_content(char * file_contents);
+void print_tree(xml_obj_t * current_object);
 
 
 // If I wanted to have garbage collection, I'd set any variables that I'd need
@@ -273,21 +274,26 @@ int main(int argc, char *argv[])
 	if (strip_comments(file_contents, buf_size) != 0)
 	{
 		// MADI: Parse the returned error later.
-		printf("Something went boom in 'strip_comments' function.");
+		printf("Something went boom in 'strip_comments' function.\n");
 	}
 	
 	/* Start Parsing! */
 	
+// 	printf("%s\n", file_contents);
+	
 	// Get the pointer to the root object. Parsing error if NULL.
-	if ((root = parse_xml_content(file_contents)) != NULL)
+	if ((root = parse_xml_content(file_contents)) == NULL)
 	{
 		// I could use errno.
-		printf("Parsing error!");
+		printf("Parsing error!\n");
 		return -9;
 	}
 	
 	// Test. This prints whatever is in 'file_contents'. Remove when done
 // 	printf("%s", file_contents);
+	
+	// Print my tree.
+	print_tree(root);
 	
 	// Free and destroy the stack
 	destroy_stack();
@@ -367,7 +373,7 @@ int strip_comments(char *contents, signed long size)
 		{
 			// Push the char from src to dst and move forward one
 			// position in dst's array.
-			printf("%c", *src);
+// 			printf("%c", *src);
 			*dst++ = *src;
 		}
 		
@@ -421,16 +427,20 @@ xml_obj_t * parse_xml_content(char * file_contents)
 	// garbage.
 	xml_obj_t * root_object = NULL;
 	
-	// This stores the type of object we're in.
-	xml_obj_type_t state_type = xml_none;
-	
 	// Current object
 	xml_obj_t * current_object;
+	
+	// Just stores whether the next object is to be stored as a child or sibling.
+	int is_child = 0;
+	
+	// This is a temporary pointer used for comparing strings in closing tags against the string popped off the stack.
+	char * close_name = NULL;
 	
 	// Allocate and wipe the memory for root_object.
 	if ((root_object = calloc(1, sizeof(xml_obj_t))) == NULL)
 	{
 		// Failed to allocate the memory.
+		printf("%d\n", __LINE__);
 		return NULL;
 	}
 	
@@ -457,21 +467,61 @@ xml_obj_t * parse_xml_content(char * file_contents)
 			// Am I going in to a CDATA?
 			if (strncmp(file_contents, "![CDATA[", 8) == 0)
 			{
+// printf("In CDATA\n");
 				// Jump past '<![CDATA['
 				file_contents += 8;
 				
 				// I want my sibling to point to this new XML
 				// object.
-				current_object->generic.right = calloc(1, sizeof(xml_obj_t));
-				if (current_object->generic.right == NULL)
+				if (is_child == 0)
 				{
-					// Failed to allocate memory.
-					return NULL;
+					current_object->generic.right = calloc(1, sizeof(xml_obj_t));
+					if (current_object->generic.right == NULL)
+					{
+						// Failed to allocate memory.
+						printf("%d\n", __LINE__);
+						return NULL;
+					}
+					
+					// Make the 'current_object' now point to the
+					// memory we just calloc'ed.
+					current_object = current_object->generic.right;
 				}
-				
-				// Make the 'current_object' now point to the
-				// memory we just calloc'ed.
-				current_object = current_object->generic.right;
+				else
+				{
+					// Make sure the code is sane. This should not happen.
+					// I can't create a child unless I am a tag.
+					if (current_object->obj_type != xml_tag)
+					{
+						// Invalid, parser error. Something in the parser broke.
+						printf("%d\n", __LINE__);
+						return NULL;
+					}
+					
+					// We're the child, make sure the next isn't unless reset.
+					is_child = 0;
+					
+					// CDATA can very much be a child of a tag.
+					current_object->xmltag.children = calloc(1, sizeof(xml_obj_t));
+					if (current_object->xmltag.children == NULL)
+					{
+						// Failed to allocate memory.
+						printf("%d\n", __LINE__);
+						return NULL;
+					}
+					
+					// Push the current object on to the stack.
+					if ((push_stack(current_object)) != 0)
+					{
+						// push_stack returns non-zero on error.
+						printf("%d\n", __LINE__);
+						return NULL;
+					}
+					
+					// Make the 'current_object' now point to the
+					// memory we just calloc'ed.
+					current_object = current_object->xmltag.children;
+				}
 				
 				// This lets me know later what I am looking at
 				// (xml_cdata)
@@ -485,7 +535,7 @@ xml_obj_t * parse_xml_content(char * file_contents)
 				// that is somewhat expensive. By checking for
 				// a ']', I won't run the 'strncmp' until I
 				// have a good reason to do so.
-				while ((*file_contents != ']') && (strncmp(file_contents+1, "]>", 2) != 0))
+				while ((*file_contents != 0) && (*file_contents != ']') && (strncmp(file_contents+1, "]>", 2) != 0))
 				{
 					file_contents++;
 				}
@@ -493,46 +543,85 @@ xml_obj_t * parse_xml_content(char * file_contents)
 				// This changes ']]>' to '\0]>'.
 				*file_contents = 0;
 				// Jump past the ']>'
-				file_contents += 2;
-				// Reset to xml_none as I don't know what I
-				// will be in the next loop around.
-				state_type = xml_none;
+				file_contents += 3;
 			}
-			else if ((isalpha(*(file_contents+1)) != 0) || (*(file_contents+1) == '_'))
+			else if ((isalpha(*file_contents)) || (*file_contents == '_'))
 			{
-				// Tag name.
-				// This could be self-closing and it could contain 
-				state_type = xml_tag;
-				
+// printf("In Tag\n");
 				// I want my sibling to point to this new XML
 				// object.
-				current_object->generic.right = calloc(1, sizeof(xml_obj_t));
-				if (current_object->generic.right == NULL)
+				if (is_child == 0)
 				{
-					// Failed to allocate memory.
-					return NULL;
+					current_object->generic.right = calloc(1, sizeof(xml_obj_t));
+					if (current_object->generic.right == NULL)
+					{
+						// Failed to allocate memory.
+						printf("%d\n", __LINE__);
+						return NULL;
+					}
+					
+					// Make the 'current_object' now point to the
+					// memory we just calloc'ed.
+					current_object = current_object->generic.right;
+				}
+				else
+				{
+					// Make sure the code is sane. This should not happen.
+					// I can't create a child unless I am a tag.
+					if (current_object->obj_type != xml_tag)
+					{
+						// Invalid, parser error. Something in the parser broke.
+						printf("%d\n", __LINE__);
+						return NULL;
+					}
+					
+					// We're the child, make sure the next isn't unless reset.
+					is_child = 0;
+					
+					// CDATA can very much be a child of a tag.
+					current_object->xmltag.children = calloc(1, sizeof(xml_obj_t));
+					if (current_object->xmltag.children == NULL)
+					{
+						// Failed to allocate memory.
+						printf("%d\n", __LINE__);
+						return NULL;
+					}
+					
+					// Push the current object on to the stack.
+					if ((push_stack(current_object)) != 0)
+					{
+						// push_stack returns non-zero on error.
+						printf("%d\n", __LINE__);
+						return NULL;
+					}
+					
+					// Make the 'current_object' now point to the
+					// memory we just calloc'ed.
+					current_object = current_object->xmltag.children;
 				}
 				
-				// Make the 'current_object' now point to the
-				// memory we just calloc'ed.
-				current_object = current_object->generic.right;
-				
 				// This lets me know later what I am looking at
-				// (xml_tag)
+				// (xml_tag).
 				current_object->cdata.obj_type = xml_tag;
 				
 				// This will mark the start of the tag name.
-				current_object->xmltag.tagname = file_contents;
+				current_object->xmltag.tagname = file_contents++;
 				
 				// Loop through until I see either a space, a
 				// closing '>' or a self-terminating '/>'. When
 				// I see a space, I will loop until I see a
 				// non-space character and determine if it's an
 				// attribute or a (self)closing brace.
-				while ((*file_contents != ' ') && (*file_contents != '\t') && (*file_contents != '\n')
-					&& (*file_contents != '/') && (*file_contents != '>'))
+				while ((*file_contents != 0) && ( ! isspace(*file_contents)) && (*file_contents != '/') && (*file_contents != '>'))
 				{
+// 					printf("%c", *file_contents);
 					file_contents++;
+				}
+				
+				if (*file_contents == 0)
+				{
+					printf("%d\n", __LINE__);
+					return NULL;
 				}
 				
 				// At this point, I've hit the end of the tag
@@ -541,21 +630,17 @@ xml_obj_t * parse_xml_content(char * file_contents)
 				// then sort out what I am looking at.
 				// To start, loop past all white spaces until I
 				// see something.
-				if ((*file_contents != ' ') && (*file_contents != '\t') && (*file_contents != '\n'))
+				if (isspace(*file_contents))
 				{
 					// I am looking at a white space. Set
 					// it to '\0' and loop until I find
 					// something.
-					*file_contents = 0;
-					
-					// Set my state to none until I know
-					// what I am looking at again.
-					state_type = xml_none;
+					*file_contents++ = 0;
 					
 					// Now loop until I see something.
 					// MADI: Should this be a function? I
 					//       can see this being used again.
-					while ((*file_contents != ' ') && (*file_contents != '\t') && (*file_contents != '\n'))
+					while ((*file_contents != 0) && (isspace(*file_contents)))
 					{
 						file_contents++;
 					}
@@ -563,9 +648,38 @@ xml_obj_t * parse_xml_content(char * file_contents)
 				
 				// At this point, I know I am looking at a
 				// non-white-space character.
+				if ((isalpha(*file_contents)) || (*file_contents == '_'))
+				{
+					// I'm looking at the start of an
+					// attrib="value" pair. This must allow
+					// for white-spaces around the '='
+					// sign.
+					
+					// Loop until I see an end character
+					while ((*file_contents != 0) && (*file_contents != '/') && (*file_contents != '>'))
+					{
+						// parse attributes and values. At this point, I must see the format 'attrib = "value"' with any number of 
+						// white spaces.
+/*						while ((*file_contents != 0) && (*file_contents != '=') && (isalpha(*file_contents)))
+						{
+							
+						}*/
+						
+						//cheat
+						file_contents++; 
+					}
+				}
+				
+				// Now I know I am passed any attributes, let's close up.
 				if ((*file_contents == '/') && (*file_contents+=1 == '>'))
 				{
 					// Self-closing tag.
+					
+					// Set to \0 because, if there were no spaces after the name, we wouldn't have a terminator of the tag name.
+					*file_contents = 0;
+					
+					// Skip past the next character as I know it's '>'.
+					file_contents += 2;
 				}
 				else if (*file_contents == '>')
 				{
@@ -573,49 +687,210 @@ xml_obj_t * parse_xml_content(char * file_contents)
 					// this tag on to the stack so that
 					// when I see a closing tag I can
 					// ensure that it matches.
-				}
-				else if (isalpha(*file_contents) != 0)
-				{
-					// I'm looking at the start of an
-					// attrib=value pair. This must allow
-					// for white-spaces around the '='
-					// sign.
-					// MADI: I should make this a function if only to make it more readable.
+					
+					// Set to \0 because, if there were no spaces after the name, we wouldn't have a terminator of the tag name.
+					*file_contents++ = 0;
+					
+					// The next object must be a child of ours.
+					is_child = 1;
 				}
 				else
 				{
 					// Mal-formed XML.
+					printf("%d\n", __LINE__);
 					return NULL;
 				}
-				
-				*file_contents++ = 0;
-				
-				
 			}
-/*			else if (*file_contents+1 == '/')
+			else if (*file_contents == '/')
 			{
 				// I'm looking at a closing tag. I'll need to
 				// make sure it matches the last opening tag.
+				
+				// If 'is_child' is set, then I might be looking at the closing tag with no CONTENT. Thus, I don't want to pop off the stack.
+				if (is_child == 0)
+				{
+					// I need to get the last value off the stack.
+					current_object = pop_stack();
+					if (current_object == NULL)
+					{
+						// Didn't get anything off the stack, bad XML.
+						printf("%d\n", __LINE__);
+						return NULL;
+					}
+				}
+				
+				// Now clear it out.
+				is_child = 0;
+				
+				file_contents++;
+				// Make 'close_name' point to the file contents.
+				close_name = file_contents;
+				
+				// Loop until I see the closing tag name end condition.
+				while ((*file_contents != 0) && (*file_contents != '>') && (!isspace(*file_contents)))
+				{
+					file_contents++;
+				}
+				
+				// if I am looking at a space, for forward until I see '>' or die if anything else.
+				if (isspace(*file_contents))
+				{
+					*file_contents=0;
+					while ((*file_contents != 0) && (isspace(*file_contents)))
+					{
+						file_contents++;
+					}
+					if (*file_contents != '>')
+					{
+						// Saw the wrong character, bad XML.
+						printf("%d\n", __LINE__);
+						return NULL;
+					}
+				}
+				
+				// End of the close tag found.
+				*file_contents++ = 0;
+				
+				// Make sure that the current object is an XML tag. This is guaranteed when popping off the stack, but we didn't
+				// necessarily pop off the stack.
+				if (current_object->obj_type != xml_tag)
+				{
+					// Whut?
+					printf("%d\n", __LINE__);
+					return NULL;
+				}
+				
+				// Do the actual compare.
+				if (strcmp(close_name, current_object->xmltag.tagname) != 0)
+				{
+					// Tags don't match.
+					printf("%d\n", __LINE__);
+					return NULL;
+				}
 			}
 			else
 			{
 				// Bad formatting, can't parse.
 				// I could set 'errno = X' to make the caller print a useful error.
+				printf("%d\n", __LINE__);
 				return NULL;
-			}*/
+			}
 		}
-// 		else if (strncmp(file_contents, "/>", 2) == 1)
-			
-/*		}
-		// strncmp returns 0 on match, non-zero otherwise.
-		else if (strncmp(file_contents, "]]>", 3) == 0)
+		else
 		{
-			// Closing CDATA.
-		}*/
-		
-		// Data, continue.
-		file_contents++;
+			// I'm looking at CONTENT then.
+			if (is_child == 0)
+			{
+				current_object->generic.right = calloc(1, sizeof(xml_obj_t));
+				if (current_object->generic.right == NULL)
+				{
+					// Failed to allocate memory.
+					printf("%d\n", __LINE__);
+					return NULL;
+				}
+				
+				// Make the 'current_object' now point to the
+				// memory we just calloc'ed.
+				current_object = current_object->generic.right;
+			}
+			else
+			{
+				// Make sure the code is sane. This should not happen.
+				// I can't create a child unless I am a tag.
+				if (current_object->obj_type != xml_tag)
+				{
+					// Invalid, parser error. Something in the parser broke.
+					printf("%d\n", __LINE__);
+					return NULL;
+				}
+				
+				// We're the child, make sure the next isn't unless reset.
+				is_child = 0;
+				
+				// CDATA can very much be a child of a tag.
+				current_object->xmltag.children = calloc(1, sizeof(xml_obj_t));
+				if (current_object->xmltag.children == NULL)
+				{
+					// Failed to allocate memory.
+					printf("%d\n", __LINE__);
+					return NULL;
+				}
+				
+				// Push the current object on to the stack.
+				if ((push_stack(current_object)) != 0)
+				{
+					// push_stack returns non-zero on error.
+					printf("%d\n", __LINE__);
+					return NULL;
+				}
+				
+				// Make the 'current_object' now point to the
+				// memory we just calloc'ed.
+				current_object = current_object->xmltag.children;
+			}
+			
+			// This lets me know later what I am looking at
+			// (xml_tag).
+			current_object->cdata.obj_type = xml_content;
+			
+			// This will mark the start of the tag name.
+			current_object->content.xmldata = file_contents;
+			
+			// Loop through until we see a '<' or \0.
+			while ((*file_contents != 0) && (*file_contents != '<'))
+			{
+				file_contents++;
+			}
+		}
 	}
 	
-	return 0;
+	return root_object;
+}
+
+// Print the tree.
+void print_tree(xml_obj_t * current_object)
+{
+	// Do I actually have something?
+	if (current_object == NULL)
+	{
+		// Because this is recursive, it is expected to sometimes be NULL so this isn't an error.
+		return;
+	}
+	
+	// If this is the root, I need to get the pointer to the first child.
+	if (current_object->obj_type == xml_root)
+	{
+		current_object = current_object->xmlroot.children;
+	}
+	
+	// For now, this reconstructs.
+	while (current_object != NULL)
+	{
+		if (current_object->obj_type == xml_cdata)
+		{
+			printf("<![CDATA[%s]]>", current_object->cdata.xmldata);
+		}
+		if (current_object->obj_type == xml_content)
+		{
+			printf("%s", current_object->content.xmldata);
+		}
+		if (current_object->obj_type == xml_tag)
+		{
+			
+			printf("<%s", current_object->xmltag.tagname);
+			
+			
+			if(current_object->xmltag.children==NULL)
+			{
+				printf(" />");
+			}
+			else 
+			{
+				printf(">");
+				print_tree(current_object->xmltag.children);
+				printf("</%s>", current_object->xmltag.tagname);
+			}
+		}
+		current_object = current_object->generic.right;
+	}
 }
