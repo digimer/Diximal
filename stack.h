@@ -11,6 +11,6 @@ int create_stack(int size);	// Create X number of items on top of the stack
 void destroy_stack(void);	// Cleanup function, frees all memory used by the stack
 int push_stack(void *data);	// Push a pointer on to the stack. Return 0 on success, -1 on fail.
 void * pop_stack(void);		// Return a pointer to the top element on the stack or NULL is the stack is empty.
-void * peak_stack(int offset);	// Return a pointer to the offset-th element from the top of the stack without removing it.
+void * peek_stack(int offset);	// Return a pointer to the offset-th element from the top of the stack without removing it.
 
 #endif

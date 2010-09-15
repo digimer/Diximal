@@ -99,6 +99,8 @@ a multi-spanning <!-- This isn't a comment! --> CDATA </key> </foo> line.]]>
 
 That            spans several lines. 
 It should not be messed with by the parser.
+
+
 		</key>
                 <key name="ta_0003"> </key>
         </lang>

@@ -49,6 +49,8 @@ Given this XML:
 <?xml version="1.0"?>
 <cluster name="an-cluster" config_version="14">
 	
+	<cman />
+	
 	<!-- Cluster Nodes -->
 	<clusternodes>
 		<!-- AN!Cluster Node 1 -->
@@ -65,7 +67,7 @@ Given this XML:
 		- weight="#"; This sets the DLM lock directory weight. This is
 		              a DLM kernel option.
 		-->
-		<clusternode name="an-node01.alteeve.com" nodeid="1">
+		<clusternode name =  	 "an-node01.alteeve.com" nodeid="1">
 			<altname name="an-node01-sn" port="6899" 
 							mcast="239.94.1.1" />
 			<!-- Fence Devices attached to this node. -->
@@ -99,7 +101,7 @@ Given this XML:
 		This names the device, the agent (script) to controls it,
 		where to find it and how to access it.
 		-->
-		<fencedevice name="batou" agent="fence_na" 
+		<fencedevice _n-a_m.e="batou" agent     =	 "fence_na" 
 			ipaddr="batou.alteeve.com"  login="section9" 
 			passwd="project2501" quiet="1"></fencedevice>
 		<fencedevice name="motoko" agent="fence_na" 
@@ -138,6 +140,17 @@ not found in the cluster.conf sample file above.
         <!-- Test words. Do NOT change unless you update 't/String.t' or tests will needlessly fail. -->
                 <key name="ta_0000">Alternate Test: [#!var!0!#].</key>
                 <key name="ta_0001">This is a string <![CDATA[with a cdata tag and <example><xml string="foo" /></example> XML code]]>. So, did it work?</key>
+                <key name="ta_0002">
+This is a string. There will be a blank line after it. <![CDATA[Now
+
+a multi-spanning <!-- This isn't a comment! --> CDATA </key> </foo> line.]]>
+
+That            spans several lines. 
+It should not be messed with by the parser.
+
+
+		</key>
+                <key name="ta_0003"> </key>
         </lang>
         
         <!-- 日本語; UTF-8 Test tags. -->
@@ -154,6 +167,7 @@ START
 cluster
 cluster::name=an-cluster
 cluster::config_version=14
+cluster::cman
 cluster::clusternodes
 cluster::clusternodes::clusternode
 cluster::clusternodes::clusternode::name=an-node01.alteeve.com
@@ -175,7 +189,7 @@ cluster::clusternodes::clusternode::nodeid=2
 cluster::clusternodes::clusternode::altname
 cluster::clusternodes::clusternode::altname::name=an-node02-sn
 cluster::clusternodes::clusternode::altname::port=6899
-cluster::clusternodes::clusternode::altname::mcast="239.94.1.1
+cluster::clusternodes::clusternode::altname::mcast=239.94.1.1
 cluster::clusternodes::clusternode::fence
 cluster::clusternodes::clusternode::fence::method
 cluster::clusternodes::clusternode::fence::method::name=node_assassin
@@ -185,7 +199,7 @@ cluster::clusternodes::clusternode::fence::method::device::port=02
 cluster::clusternodes::clusternode::fence::method::device::action=reboot
 cluster::fencedevices
 cluster::fencedevices::fencedevice
-cluster::fencedevices::fencedevice::name=batou
+cluster::fencedevices::fencedevice::_n-a_m.e=batou
 cluster::fencedevices::fencedevice::agent=fence_na
 cluster::fencedevices::fencedevice::ipaddr=batou.alteeve.com
 cluster::fencedevices::fencedevice::login=section9
@@ -200,9 +214,14 @@ cluster::fencedevices::fencedevice::passwd=project2501
 cluster::fencedevices::fencedevice::quiet=1
 cluster::fence_daemon
 cluster::fence_daemon::post_join_delay=60
+cluster::fence_daemon::CONTENT=
+	
 words
+words::name
 words::name::CONTENT=test.xml
+words::version
 words::version::CONTENT=0.0.001
+words::langs
 words::langs::CONTENT=en_CA,jp
 words::lang
 words::lang::name=en_CA
@@ -215,12 +234,27 @@ words::lang::key::name=ta_0000
 words::lang::key::CONTENT=Alternate Test: [#!var!0!#].
 words::lang::key
 words::lang::key::name=ta_0001
-words::lang::key::CONTENT=This is a string With a cdata tag and <example><xml string="foo" /></example> XML code. So, did it work?
+words::lang::key::CONTENT=This is a string with a cdata tag and <example><xml string="foo" /></example> XML code. So, did it work?
+words::lang::key
+words::lang::key::name=ta_0002
+words::lang::key::CONTENT=
+This is a string. There will be a blank line after it. Now
+
+a multi-spanning <!-- This isn't a comment! --> CDATA </key> </foo> line.
+
+That            spans several lines. 
+It should not be messed with by the parser.
+
+
+		
+words::lang::key
+words::lang::key::name=ta_0003
+words::lang::key::CONTENT= 
 words::lang
 words::lang::name=jp
 words::lang::long_name=日本語
 words::lang::key
 words::lang::key::name=テス_0000
-words::lang::key::name::CONTENT=代りのテスト: [#!var!0!#]。
+words::lang::key::CONTENT=代りのテスト: [#!var!0!#]。
 END
 -------------------------------------------------------------------------------

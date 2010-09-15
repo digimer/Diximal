@@ -71,7 +71,7 @@ void * pop_stack(void)
 }
 
 // Return a pointer to the offset-th element from the top of the stack without removing it.
-void * peak_stack(int offset)
+void * peek_stack(int offset)
 {
 	// Make sure I am not being asked to access an offset beyond stack_index or below 0.
 	if ((offset >= stack_index) || (offset < 0 ))
