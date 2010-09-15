@@ -6,7 +6,7 @@ program.
 
 Madison Kelly (Digimer)
 mkelly@alteeve.com
-Sep. 11, 2010
+Sep. 14, 2010
 
 See README for usage and expected behaviour.
 */
@@ -30,13 +30,8 @@ See README for usage and expected behaviour.
 #include <sys/stat.h>
 // Library for testing and character manipulation.
 #include <ctype.h>
-// I may not need these.
-// Library for standard integer types (guarantees the size of an int).
-// #include <stdint.h>
-// Provides some integer and mathmatical functions line INT_MAX and UNIT_MAX
-// #include <limits.h>
 
-// Include my header
+// Include my stack header.
 #include "stack.h"
 
 // This sets the limit of child tags I can delve in to.
@@ -48,75 +43,93 @@ typedef enum {
 	// These are being assigned sequential integer values by the compile
 	// (xml_content = 0, ... )
 	xml_none,	// Initial type.
-	xml_root,	// 
+	xml_root,	// This type is set at the root of the parsed tree.
 	xml_content,	// While reading CONTENT.
-	xml_cdata,	// While in a CDATA block
-	xml_tag,	// While parsing a tag.
-	xml_attrib	// While parsing attribute="value" pairs.
-			// MADI: Make sure this is needed.
+	xml_cdata,	// While in a CDATA block.
+	xml_tag		// While parsing a tag.
 } xml_obj_type_t;
 
 
 /* Unions */
 
 // This has to come first as it's a forward decleration. This means that I can
-// reference it in my structures before the unions define the connections of
+// reference it in my structures before the unions defines the connections of
 // the structures.
 union xml_obj;
 
 
 /* structures */
 
-// This will be used for attributes and their values found in tags.
-typedef struct xml_attr_s {
+// This will be used for attributes and their values found in tags. It includes
+// a pointer to the next, if any, attribute for the given tag.
+typedef struct xml_attr_s
+{
 	char * name;
 	char * value;
 	struct xml_attr_s * next;
-} xml_attr_t;	// This name is use as a short-form for "struct xml_attr_s
+} xml_attr_t;	// This name is used as a short-form for "struct xml_attr_s
 		// <name>".
 
-// The name suffix _s helps show that it's a structure (vs. _t for type).
-// This is the generic function used to link things together.
-struct xml_generic_obj_s {
-	// This is a variable of the named type (see in enumeration above)
+// The name suffix '_s' helps show that it's a structure (vs. '_t' for type).
+// This is the generic structure used to link things together.
+struct xml_generic_obj_s
+{
+	// This is a variable that stores the named type (the enumerations
+	// above).
 	xml_obj_type_t obj_type;
-	// This points to ourself and points to whatever is to the right, or
-	// NULL.
+	
+	// This points to whatever is to the right in the linked list, or NULL
+	// if nothing.
 	union xml_obj * right;
 };
 
 // This is used for storing pointers to CONTENTS.
-struct xml_content_obj_s {
+struct xml_content_obj_s
+{
 	xml_obj_type_t obj_type;
 	union xml_obj * right;
-	// Contents between the opening tag and the first non-content element.
+	
+	// This will be the pointer at the start of the CONTENTs.
 	char * xmldata;
 };
 
-// This is used for storing the pointers to CDATA contents.
-struct xml_cdata_obj_s {
+// This is used for storing the pointers to CDATA.
+struct xml_cdata_obj_s
+{
 	xml_obj_type_t obj_type;
 	union xml_obj * right;
-	// This is the string between the opening and closing CDATA stanza.
+	
+	// This is a pointer the the start of the CDATA string.
 	char * xmldata;
 };
 
-// This is used to store the pointers to the beginning of tags.
-struct xml_tag_obj_s {
+// This is used to store the pointers to the beginning of tags. It can have
+// child tags.
+struct xml_tag_obj_s
+{
 	xml_obj_type_t obj_type;
 	union xml_obj * right;
-	// This is the name of the tag.
+	
+	// This points to the start of the tag name.
 	char * tagname;
-	// This is a pointer to a linked list.
+	
+	// This is a pointer to the first (if any) linked list of attributes.
 	xml_attr_t * attributes;
-	// Flag to indicate presence of child tags
+	
+	// Flag to indicate presence of child tags. Set to '1' when there are
+	// children. This is used to speed up the decision making when it comes
+	// to whether CONTENTS will be printed, which will only happen on leaf
+	// tags.
 	int has_child_tag;
-	// Pointer to chilren.
+	
+	// Pointer to child tags, if any.
 	union xml_obj * children;
 };
 
-// This is used to store the special 'root' object; The start of the contents.
-struct xml_root_obj_s {
+// This is used to store the special 'root' object; The start of the XML
+// contents tree.
+struct xml_root_obj_s
+{
 	// This, being root, has no siblings
 	xml_obj_type_t obj_type;
 	union xml_obj * children;
@@ -125,37 +138,54 @@ struct xml_root_obj_s {
 
 /* Unions */
 
-// Define the union.
-typedef union xml_obj {
+// This union is used to help me identify what I can print when I look at an
+// object's 'obj_type'.
+typedef union xml_obj
+{
+	// The object type is accessed here.
 	xml_obj_type_t obj_type;
-	// If I didn't want to use 'struct ...', I could have put
-	// 'xml_generic_obj_t' after the decleration above.
 	struct xml_generic_obj_s generic;
 	struct xml_content_obj_s content;
 	struct xml_cdata_obj_s   cdata;
 	struct xml_root_obj_s    xmlroot;
 	struct xml_tag_obj_s     xmltag;
-	// MADI: Verify that this is indeed needed for attributes
-	struct xml_attr_s        xmlattrib;
 } xml_obj_t;
 
 
 /* prototypes */
 
-void usage (char *name);
+// Prints the help message and exits.
+void usage(char *name);
+
+// This does an initial pass of the file and strips out comments.
 int strip_comments(char *contents, signed long size);
+
+// This is the main parser function.
 xml_obj_t * parse_xml_content(char * file_contents);
-void debug_print_tree(xml_obj_t * current_object);
+
+// This is called when I've exited early. It reconstructs the XML to the point
+// of the error.
+void print_broken_tree(xml_obj_t * current_object);
+
+// This is the parent function for printing the XML tree in the desired format.
 void print_tree(xml_obj_t * current_object);
+
+// This is the recursive portion of the tree printer.
 void print_tree_recursive(xml_obj_t * current_object, int has_tags, char * path);
+
+// This function parses an 'attribute="value"' pair in a tag.
 char * parse_attribute_value_pairs(char * file_contents, xml_obj_t * current_object);
+
+// This cleans up by running through the object tree, freeing memory as it
+// goes.
 void free_tree_mem(xml_obj_t * current_object);
 
+
 // If I wanted to have garbage collection, I'd set any variables that I'd need
-// to free as globals, set them to NULL, then on error function, loop through
-// and any that aren't NULL, free/close. I'd need to add each variable to the
-// garbage collection function as I add them here so that I know whether to
-// 'free' or 'close'.
+// to free as globals, set them to NULL, and then on error, loop through any
+// that aren't NULL and call free/close against them. I'd need to add each
+// variable to the garbage collection function as I add them here so that I
+// know whether to use 'free' or 'close'.
 
 // Main function.
 int main(int argc, char *argv[])
@@ -169,18 +199,20 @@ int main(int argc, char *argv[])
 	// usually equiv. to 'unsigned long' on *nix.
 	off_t buf_size;
 	
-	// This will hold the info on the file I am reading.
+	// This will hold the information returned by 'stat' on the file I am
+	// reading. The most important being the size.
 	struct stat file_info;
 	
-	// Initial file read buffer
+	// Initial file read buffer. This will be where I will do all my work.
 	char *file_contents;
 	
-	// The root of the parsed stack
+	// The root of the parsed stack.
 	xml_obj_t * root;
 	
-	// Pick up switches
+	// Pick up command line switches.
 	while ((c = getopt (argc, argv, "hf:")) != -1)
 	{
+		// 'c' is the switch I am looking at just now.
 		switch (c)
 		{
 			// Show usage
@@ -189,23 +221,26 @@ int main(int argc, char *argv[])
 				return 0;
 			break;
 			
-			// The file to read
+			// The file to read. This requires a value and will
+			// return '?' on the next pass if none was found.
 			case 'f':
 				read_file = optarg;
 			break;
 			
-			// '?' is set if an unknown argument is passed. If the previous
-			// option had a ':' after it without something after it, optopt
-			// will have the argument so you can report what was missing.
+			// '?' is set if an unknown argument is passed. If the
+			// previous option had a ':' after it and there was no
+			// following value, 'optopt' will have the argument so
+			// I can report what was missing.
 			case '?':
 				if (optopt == 'f')
 				{
-					// -f was passed without a filename after it.
+					// -f was passed without a filename
+					// after it.
 					printf("Missing filename.\n");
 				}
 				else
 				{
-					// A switch was used that wasn't recognized.
+					// An undefined switch was used.
 					printf("Invalid switch '%c'\n", optopt);
 				}
 				usage(argv[0]);
@@ -215,64 +250,66 @@ int main(int argc, char *argv[])
 			// This is a catch all, but shouldn't be hit as '?'
 			// should catch all unknown switches.
 			default:
-				printf("Unexpected error!\n");
+				printf("Unexpected error while reading command line switches!\n");
 				usage(argv[0]);
 				return -2;
 		}
 	}
 	
-	// Create the stack. The '100' means that I can go as far as 100 child
-	// tags. This *should* be enough.
+	// Create the stack. The 'STACK_SIZE' is an integer that sets the
+	// maximum number of child tags I can create.
 	if (create_stack(STACK_SIZE) != 0)
 	{
 		// Failed to allocate enough memory.
-		printf("Failed to allocate enough memory for a stack depth of: [%d], the error was: %s.\n", STACK_SIZE, strerror(errno));
-		return -8;
-	}
-	
-	// Did I get a file?
-	if (read_file == NULL)
-	{
-		printf("No file passed.\n");
-		usage(argv[0]);
-		// MADI: There should be a 'free' before return.
+		printf("Failed to allocate enough memory for a stack depth of: [%d]\nThe error was: %s.\n", STACK_SIZE, strerror(errno));
 		return -3;
 	}
 	
-	// Read the file.
-	if ((xml = fopen(read_file, "r")) == NULL)
+	// This might be hit if no '-f' argument was passed.
+	if (read_file == NULL)
 	{
-		printf("Failed to open the file: [%s] for reading, error was: %s.\n", read_file, strerror(errno));
+		printf("No file specified, nothing to parse.\n");
+		usage(argv[0]);
 		return -4;
 	}
 	
-	// Get the file info.
-	// MADI: pass a reference, which read_file is, and the address of
-	// 'file_info'.
-	if (stat(read_file, &file_info) != 0)
+	// Try to read the file.
+	if ((xml = fopen(read_file, "r")) == NULL)
 	{
-		printf("Failed to get the stat info on: [%s], error was: %s.\n", read_file, strerror(errno));
+		printf("Failed to open the file: [%s] for reading.\nThe error was: %s.\n", read_file, strerror(errno));
 		return -5;
 	}
 	
-	// Pull the file size out of the structure.
-	buf_size=(file_info.st_size+1);	// Extra space for \0.
-	//printf("Reading: [%s] of size: [%ld]\n", read_file, file_info.st_size);
-	
-	// Like malloc, but also zeros the allocated memory.
-	if ((file_contents=calloc(buf_size, 1)) == NULL)
+	// Pass a reference to 'file_info', which 'stat' will store the
+	// information on the 'read_file' in.
+	if (stat(read_file, &file_info) != 0)
 	{
-		printf("Failed to allocate memory in file: [%s] at line: [%d]. Error was: %s.\n", __FILE__, __LINE__, strerror(errno));
+		printf("Failed to get the 'stat' info for the file: [%s]\n The error was: %s.\n", read_file, strerror(errno));
 		return -6;
 	}
 	
-	// Read in the file to the buffer.
-	// This is intentionally backwards so that I read 'buf_size' once,
-	// rather that 1 byte 'buf_size' time.
+	// Get the size of the buffer needed to read in the contents of the XML
+	// file out of the 'file_info' structure. The extra space is for the
+	// final \0.
+	buf_size=(file_info.st_size+1);
+	
+	// Allocate the memory for the XML file contents. I realize that this
+	// method would fail if the XML file size was greater than the
+	// available free memory. Part of the 'primitive' parser.
+	// 'calloc' is like 'malloc', but it zeros out the allocated memory.
+	if ((file_contents=calloc(buf_size, 1)) == NULL)
+	{
+		printf("Failed to allocate memory for the XML file: %s]\nThe error was: %s.\n", read_file, strerror(errno));
+		return -7;
+	}
+	
+	// Read the XML file in to the 'file_contents' buffer. This is
+	// intentionally backwards so that I read 'buf_size' once rather that
+	// 1 byte 'buf_size' times.
 	if ((fread(file_contents, file_info.st_size, 1, xml)) != 1)
 	{
-		printf("Failed to read the file: [%s], the error was: %s.\n", read_file, strerror(errno));
-		return -7;
+		printf("Failed to read into memory the file: [%s].\nThe error was: %s.\n", read_file, strerror(errno));
+		return -8;
 	}
 	
 	// Close the XML file, it's all in memory now!
@@ -282,33 +319,28 @@ int main(int argc, char *argv[])
 	if (strip_comments(file_contents, buf_size) != 0)
 	{
 		// MADI: Parse the returned error later.
-		printf("Something went boom in 'strip_comments' function.\n");
-	}
-	
-	/* Start Parsing! */
-	
-// 	printf("%s\n", file_contents);
-	
-	// Get the pointer to the root object. Parsing error if NULL.
-	if ((root = parse_xml_content(file_contents)) == NULL)
-	{
-		// I could use errno.
-		printf("Parsing error!\n");
+		printf("There was an error in the 'strip_comments()' function.\n");
 		return -9;
 	}
 	
-	// Test. This prints whatever is in 'file_contents'. Remove when done
-// 	printf("%s", file_contents);
+	// Get the pointer to the root object. Null is return if there was a
+	// parsing error.
+	if ((root = parse_xml_content(file_contents)) == NULL)
+	{
+		// I could use errno.
+		printf("\n\nParsing error!\nThe above XML represents what I successfully parsed.\nPlease see the top of the XML output for a more detailed error.\n\n");
+		return -10;
+	}
 	
-	// Print my tree.
-// 	debug_print_tree(root);
+	// Print the XML tree!
 	print_tree(root);
 	
 	// Free and destroy the stack
 	destroy_stack();
 	
-	// Release the memory back to the OS that had been allocated to the
-	// file buffer's memory
+	// Free the memory that had been allocated to the XML file contents.
+	// This doesn't actually clear the contents though. If security was a
+	// real concern, I'd want to flush it.
 	free(file_contents);
 	
 	// If I hit here, I am exiting normally.
@@ -318,16 +350,24 @@ int main(int argc, char *argv[])
 
 /* functions */
 
-// This strips the comments from the 'file_contents'.
+// Prints the help message and exits.
+void usage (char *name)
+{
+	printf("Usage: %s -f /path/to/file.xml\n", name);
+}
+
+// This does an initial pass of the file and strips out comments.
 int strip_comments(char *contents, signed long size)
 {
-	// Variables; Source and Destination.
-	// contents could have been 'src' directly.
+	// The source and destination variables will be set initially to the
+	// same pointer as in 'file_contents'.
 	char *src, *dst;
+	
 	// State variables; Processing Instrunctions, Comment and CDATA.
 	int pi=0, com=0, cd=0;
 	
-	// Before I do anything, make sure that my contents has a final NULL.
+	// Before I do anything, make sure that my contents have something and
+	// terminate in a final \0.
 	if (contents == NULL)
 	{
 		// Error, passed an empty reference.
@@ -336,13 +376,13 @@ int strip_comments(char *contents, signed long size)
 	if (contents[size-1] != 0)
 	{
 		// Contents don't end with a 0, contents are not to be trusted.
-		return -2;
+		return -1;
 	}
 	
-	// Because I am moving good data to the left and the sticking a NULL
+	// Because I am moving good data to the left and then sticking a NULL
 	// terminator at the end of the shrunken cleaned data, I can use the
-	// same memory space.
-	src=dst=contents;
+	// same memory space. Start by setting 'src' and 'dst' to 'contents'.
+	src = dst = contents;
 	
 	// While I am getting data from source, and while I've not gone past
 	// my buffer length...
@@ -350,29 +390,34 @@ int strip_comments(char *contents, signed long size)
 	{
 		// If this is the less-than sign, evaluate.
 		// I put the most expensive checks on the right as the first
-		// check to fail ends all following checks.
+		// check to fail aborts all following checks.
 		if ((pi == 0) && (com == 0) && (cd == 0) && (*src == '<'))
 		{
+			// If the character after '<' is '?', I am looking at
+			// a processing instruction.
 			if (*(src+1) == '?')
 			{
-				// In a processing instruction.
 				pi=1;
 				src++;
 				size--;
 			}
 			// 'strncmp', unlike 'strcmp', looks ahead only X chars
-			// for a match. Returns 0 on match.
+			// for a match. Returns 0 on match. If the following
+			// three characters are '!---', I am looking at the
+			// start of a comment.
 			else if (strncmp(src+1, "!--", 3) == 0)
 			{
-				// In a comment
 				com=1;
 				src+=3;
 				size-=3;
 			}
+			// If the following eight characters are '![CDATA['
+			// then I am looking at the start of a CDATA block.
 			else if (strncmp(src+1, "![CDATA[", 8) == 0)
 			{
-				// In a CDATA block.
 				cd = 1;
+				// I don't want to strip the '<![CDATA[' as I
+				// will need it later.
 			}
 		}
 		
@@ -380,13 +425,12 @@ int strip_comments(char *contents, signed long size)
 		// the character.
 		if ((pi == 0) && (com == 0))
 		{
-			// Push the char from src to dst and move forward one
-			// position in dst's array.
-// 			printf("%c", *src);
+			// Copy the character from 'src' to 'dst' and move
+			// forward one position in dst's array.
 			*dst++ = *src;
 		}
 		
-		// Check for leaving states.
+		/* Check for leaving states. */
 		// The expensive check won't happen unless the '[' char is seen.
 		if ((cd == 1) && (*src == ']') && (strncmp(src+1, "]>", 2) == 0))
 		{
@@ -423,73 +467,65 @@ int strip_comments(char *contents, signed long size)
 	return 0;
 }
 
-// Prints diximal usage.
-void usage (char *name)
-{
-	printf("Usage: %s -f /path/to/file.xml\n", name);
-}
-
-// This does the actual parsing. Returns a pointer to the root
+// This is the main parser function.
 xml_obj_t * parse_xml_content(char * file_contents)
 {
 	// Root object, initialized to NULL to make sure I'm not looking at
 	// garbage.
 	xml_obj_t * root_object = NULL;
 	
-	// Current object
+	// Current and parent objects.
 	xml_obj_t * current_object;
 	xml_obj_t * parent_object;
 	
-	// Just stores whether the next object is to be stored as a child or sibling.
+	// This stores whether the next object is to be stored as a child (1)
+	// or sibling (0).
 	int is_child = 0;
 	
-	// This is a temporary pointer used for comparing strings in closing tags against the string popped off the stack.
+	// This is a temporary pointer used for comparing strings in closing
+	// tags against the string popped off the stack.
 	char * close_name = NULL;
 	
 	// Allocate and wipe the memory for root_object.
 	if ((root_object = calloc(1, sizeof(xml_obj_t))) == NULL)
 	{
 		// Failed to allocate the memory.
-		printf("Failed to allocate memory in file: [%s] at line: [%d]. Error was: %s.\n", __FILE__, __LINE__, strerror(errno));
+		printf("Failed to allocate memory for the root object in 'parse_xml_content()'.\nThe error was: %s.\n", strerror(errno));
 		return NULL;
 	}
 	
 	// Set the type of the root object.
 	root_object->obj_type = xml_root;
-	// the above is equiv. to "*root_object.type"
 	
 	// Now, being the beginning, set 'current_object' to 'root_object'.
 	current_object = root_object;
 	
-	// Loop through until I hit 0.
+	// Loop through until I hit \0.
 	while (*file_contents != 0)
 	{
-		// If I am in a CDATA type, only look for the closing ]]>.
 		// Do we have the start of some tag?
 		if (*file_contents == '<')
 		{
-			// Yar. < is ALWAYS a delimeter, so \0 it.
+			// Yar. '<' is ALWAYS a delimeter, so \0 it.
 			*file_contents++ = 0;
-			// This is equal to;
-			// *file_contents = 0; file_contents++;
-			// because it sets and /then/ increments.
 			
 			// Am I going in to a CDATA?
 			if (strncmp(file_contents, "![CDATA[", 8) == 0)
 			{
-// printf("In CDATA\n");
-				// Jump past '<![CDATA['
+				// Yes, jump past '<![CDATA['.
 				file_contents += 8;
 				
-				// I want my sibling to point to this new XML
-				// object.
+				// Is this a child or a sibling?
 				if (is_child == 0)
 				{
+					// Sibling. Allocate memory for the
+					// next object and store it in the
+					// 'generic.right' pointer. 
 					current_object->generic.right = calloc(1, sizeof(xml_obj_t));
 					if (current_object->generic.right == NULL)
 					{
 						// Failed to allocate memory.
-						printf("Failed to allocate memory in file: [%s] at line: [%d]. Error was: %s.\n", __FILE__, __LINE__, strerror(errno));
+						printf("Failed to allocate memory for sibling object in 'parse_xml_content()'.\nThe error was: %s.\n", strerror(errno));
 						free_tree_mem(root_object);
 						return NULL;
 					}
@@ -500,26 +536,30 @@ xml_obj_t * parse_xml_content(char * file_contents)
 				}
 				else
 				{
-					// Make sure the code is sane. This should not happen.
+					// Child. Make sure the code is sane.
 					// I can't create a child unless I am a tag.
 					if (current_object->obj_type != xml_tag)
 					{
 						// Invalid, parser error. Something in the parser broke.
-						printf("Tried to parse attributes when not in an 'xml_tag' in file: [%s] at line: [%d].\n", __FILE__, __LINE__);
-						debug_print_tree(root_object);
+						printf("Tried to parse attributes when not in an 'xml_tag' in 'parse_xml_content()'.\n");
+						print_broken_tree(root_object);
 						free_tree_mem(root_object);
 						return NULL;
 					}
 					
-					// We're the child, make sure the next isn't unless reset.
+					// We want to clear the child state and
+					// let it be reset later if
+					// appropriate.
 					is_child = 0;
 					
-					// CDATA can very much be a child of a tag.
+					// Allocate memory for the child and
+					// store the pointer in
+					// 'xmltag.children'.
 					current_object->xmltag.children = calloc(1, sizeof(xml_obj_t));
 					if (current_object->xmltag.children == NULL)
 					{
 						// Failed to allocate memory.
-						printf("Failed to allocate memory in file: [%s] at line: [%d]. Error was: %s.\n", __FILE__, __LINE__, strerror(errno));
+						printf("Failed to allocate memory for child object in 'parse_xml_content()'.\nThe error was: %s.\n", strerror(errno));
 						free_tree_mem(root_object);
 						return NULL;
 					}
@@ -528,19 +568,19 @@ xml_obj_t * parse_xml_content(char * file_contents)
 					if ((push_stack(current_object)) != 0)
 					{
 						// push_stack returns non-zero on error.
-						printf("Exiting on parse error at line: [%d]\n", __LINE__);
-						debug_print_tree(root_object);
+						printf("Failed to push the current child tag on to the stack in 'parse_xml_content()'.\n");
+						print_broken_tree(root_object);
 						free_tree_mem(root_object);
 						return NULL;
 					}
 					
-					// Make the 'current_object' now point to the
-					// memory we just calloc'ed.
+					// Make the 'current_object' point to
+					// the memory we just calloc'ed.
 					current_object = current_object->xmltag.children;
 				}
 				
 				// This lets me know later what I am looking at
-				// (xml_cdata)
+				// ('xml_cdata', in this case.)
 				current_object->cdata.obj_type = xml_cdata;
 				
 				// This will mark the start of the CDATA.
@@ -558,60 +598,64 @@ xml_obj_t * parse_xml_content(char * file_contents)
 				
 				// This changes ']]>' to '\0]>'.
 				*file_contents = 0;
+				
 				// Jump past the ']>'
 				file_contents += 3;
 			}
 			else if ((isalpha(*file_contents)) || (*file_contents == '_'))
 			{
-// printf("In Tag\n");
 				// Get the pointer at the top of the stack.
 				parent_object = peek_stack(0);
 				
-				// If it's not NULL, note it so that I'll know what to print later.
+				// If it's not NULL, note it so that I'll know
+				// what to print later.
 				if (parent_object != NULL)
 				{
 					parent_object->xmltag.has_child_tag = 1;
 				}
 				
-				// I want my sibling to point to this new XML
-				// object.
+				// I want my child or sibling to point to this
+				// new XML object.
 				if (is_child == 0)
 				{
 					current_object->generic.right = calloc(1, sizeof(xml_obj_t));
 					if (current_object->generic.right == NULL)
 					{
 						// Failed to allocate memory.
-						printf("Failed to allocate memory in file: [%s] at line: [%d]. Error was: %s.\n", __FILE__, __LINE__, strerror(errno));
+						printf("Failed to allocate memory for sibling tag in 'parse_xml_content()'.\nThe error was: %s.\n", strerror(errno));
 						free_tree_mem(root_object);
 						return NULL;
 					}
 					
-					// Make the 'current_object' now point to the
-					// memory we just calloc'ed.
+					// Make the 'current_object' now point
+					// to the memory we just calloc'ed.
 					current_object = current_object->generic.right;
 				}
 				else
 				{
-					// Make sure the code is sane. This should not happen.
-					// I can't create a child unless I am a tag.
+					// Make sure the code is sane. I can't
+					// create a child unless I am a tag.
 					if (current_object->obj_type != xml_tag)
 					{
-						// Invalid, parser error. Something in the parser broke.
-						printf("Tried to parse attributes when not in an 'xml_tag' in file: [%s] at line: [%d].\n", __FILE__, __LINE__);
-						debug_print_tree(root_object);
+						// Invalid, parser error. 
+						// Something in the parser
+						// broke.
+						printf("Tried to parse attributes when not in an 'xml_tag' in 'parse_xml_content()'.\n");
+						print_broken_tree(root_object);
 						free_tree_mem(root_object);
 						return NULL;
 					}
 					
-					// We're the child, make sure the next isn't unless reset.
+					// Clear the child state as I don't
+					// know what the next object will be.
 					is_child = 0;
 					
-					// CDATA can very much be a child of a tag.
+					// Allocate memory.
 					current_object->xmltag.children = calloc(1, sizeof(xml_obj_t));
 					if (current_object->xmltag.children == NULL)
 					{
 						// Failed to allocate memory.
-						printf("Failed to allocate memory in file: [%s] at line: [%d]. Error was: %s.\n", __FILE__, __LINE__, strerror(errno));
+						printf("Failed to allocate memory for child tag in 'parse_xml_content()'.\nThe error was: %s.\n", strerror(errno));
 						free_tree_mem(root_object);
 						return NULL;
 					}
@@ -620,19 +664,18 @@ xml_obj_t * parse_xml_content(char * file_contents)
 					if ((push_stack(current_object)) != 0)
 					{
 						// push_stack returns non-zero on error.
-						printf("Exiting on parse error at line: [%d]\n", __LINE__);
-						debug_print_tree(root_object);
+						printf("Failed to push the new child tag on to the stack in 'parse_xml_content()'.\n");
+						print_broken_tree(root_object);
 						free_tree_mem(root_object);
 						return NULL;
 					}
 					
-					// Make the 'current_object' now point to the
-					// memory we just calloc'ed.
+					// Make the 'current_object' now point
+					// to the memory we just calloc'ed.
 					current_object = current_object->xmltag.children;
 				}
 				
-				// This lets me know later what I am looking at
-				// (xml_tag).
+				// Record the object type.
 				current_object->cdata.obj_type = xml_tag;
 				
 				// This will mark the start of the tag name.
@@ -643,16 +686,18 @@ xml_obj_t * parse_xml_content(char * file_contents)
 				// I see a space, I will loop until I see a
 				// non-space character and determine if it's an
 				// attribute or a (self)closing brace.
-				while ((*file_contents != 0) && ( ! isspace(*file_contents)) && (*file_contents != '/') && (*file_contents != '>'))
+				while ((*file_contents != 0) && ( ! isspace(*file_contents))
+					&& (*file_contents != '/') && (*file_contents != '>'))
 				{
-// 					printf("%c", *file_contents);
 					file_contents++;
 				}
 				
+				// If the loop exited because I hit \0, there
+				// was a parsing error.
 				if (*file_contents == 0)
 				{
-					printf("Exiting on parse error at line: [%d]\n", __LINE__);
-					debug_print_tree(root_object);
+					printf("Premature exit of XML data while parsing tag in 'parse_xml_content()'.\n");
+					print_broken_tree(root_object);
 					free_tree_mem(root_object);
 					return NULL;
 				}
@@ -660,8 +705,8 @@ xml_obj_t * parse_xml_content(char * file_contents)
 				// At this point, I've hit the end of the tag
 				// name one way or the other. So now I need to
 				// mark this as the end of the tag name and
-				// then sort out what I am looking at.
-				// To start, loop past all white spaces until I
+				// then sort out what I am looking at. To
+				// start, loop past all white spaces until I
 				// see something.
 				if (isspace(*file_contents))
 				{
@@ -671,8 +716,6 @@ xml_obj_t * parse_xml_content(char * file_contents)
 					*file_contents++ = 0;
 					
 					// Now loop until I see something.
-					// MADI: Should this be a function? I
-					//       can see this being used again.
 					while ((*file_contents != 0) && (isspace(*file_contents)))
 					{
 						file_contents++;
@@ -696,8 +739,8 @@ xml_obj_t * parse_xml_content(char * file_contents)
 						if ((file_contents = parse_attribute_value_pairs(file_contents, current_object)) == NULL)
 						{
 							// Something went wrong while parsing attributes.
-							printf("Exiting on parse error at line: [%d]\n", __LINE__);
-							debug_print_tree(root_object);
+							printf("Error parsing attribute-value pairs in 'parse_xml_content()'.\n");
+							print_broken_tree(root_object);
 							free_tree_mem(root_object);
 							return NULL;
 						}
@@ -710,28 +753,39 @@ xml_obj_t * parse_xml_content(char * file_contents)
 						{
 							file_contents++;
 						}
+						
+						// If the loop exited because I
+						// hit \0, there was a parsing
+						// error.
+						if (*file_contents == 0)
+						{
+							printf("Premature exit of XML data while parsing attributes in 'parse_xml_content()'.\n");
+							print_broken_tree(root_object);
+							free_tree_mem(root_object);
+							return NULL;
+						}
 					}
 				}
 				
-				// Now I know I am passed any attributes, let's close up.
+				// I know that I am passed any attributes, so I
+				// can look for the close.
 				if ((*file_contents == '/') && (*file_contents+=1 == '>'))
 				{
-					// Self-closing tag.
-					
-					// Set to \0 because, if there were no spaces after the name, we wouldn't have a terminator of the tag name.
+					// This is a self-closing tag.
+					// Set to \0 because, if there was no
+					// spaces after the name, we wouldn't
+					// have a terminator of the tag name.
 					*file_contents = 0;
 					
-					// Skip past the next character as I know it's '>'.
+					// Skip past the next character as I
+					// know it's '>'.
 					file_contents += 2;
 				}
 				else if (*file_contents == '>')
 				{
-					// Tag is closed. Now I'll need to push
-					// this tag on to the stack so that
-					// when I see a closing tag I can
-					// ensure that it matches.
-					
-					// Set to \0 because, if there were no spaces after the name, we wouldn't have a terminator of the tag name.
+					// Set to \0 because, if there were no
+					// spaces after the name, we wouldn't
+					// have a terminator of the tag name.
 					*file_contents++ = 0;
 					
 					// The next object must be a child of ours.
@@ -739,47 +793,65 @@ xml_obj_t * parse_xml_content(char * file_contents)
 				}
 				else
 				{
-					// Mal-formed XML.
-					printf("Exiting on parse error at line: [%d]\n", __LINE__);
-					debug_print_tree(root_object);
+					// Malformed XML.
+					printf("Parse error. Failed to find a closing brace for tag in 'parse_xml_content()'.\n");
+					print_broken_tree(root_object);
 					free_tree_mem(root_object);
 					return NULL;
 				}
 			}
 			else if (*file_contents == '/')
 			{
-				// I'm looking at a closing tag. I'll need to
-				// make sure it matches the last opening tag.
-				
-				// If 'is_child' is set, then I might be looking at the closing tag with no CONTENT. Thus, I don't want to pop off the stack.
+				// I'm looking at a closing tag. 
+				// If 'is_child' is set, then I might be
+				// looking at the closing tag with no CONTENT.
+				// Thus, I don't want to pop off the stack.
 				if (is_child == 0)
 				{
-					// I need to get the last value off the stack.
+					// I need to get the last value off the
+					// stack.
 					current_object = pop_stack();
 					if (current_object == NULL)
 					{
-						// Didn't get anything off the stack, bad XML.
-						printf("Exiting on parse error at line: [%d]\n", __LINE__);
-						debug_print_tree(root_object);
+						// Didn't get anything off the
+						// stack, bad XML.
+						printf("Parse error. I saw a closing tag without a prior opening tag in 'parse_xml_content()'.\n");
+						print_broken_tree(root_object);
 						free_tree_mem(root_object);
 						return NULL;
 					}
 				}
 				
-				// Now clear it out.
+				// Clear the child state.
 				is_child = 0;
 				
+				// Advance one as I am no longer interested in
+				// the '/'.
 				file_contents++;
-				// Make 'close_name' point to the file contents.
+				
+				// Make 'close_name' match to the
+				// 'file_contents' pointer.
 				close_name = file_contents;
 				
-				// Loop until I see the closing tag name end condition.
+				// Loop until I see the closing tag name end
+				// condition.
 				while ((*file_contents != 0) && (*file_contents != '>') && (!isspace(*file_contents)))
 				{
 					file_contents++;
 				}
 				
-				// if I am looking at a space, for forward until I see '>' or die if anything else.
+				// If the loop exited because I hit \0, there
+				// was a parsing error.
+				if (*file_contents == 0)
+				{
+					printf("Premature exit of XML data while parsing closing tag in 'parse_xml_content()'.\n");
+					print_broken_tree(root_object);
+					free_tree_mem(root_object);
+					return NULL;
+				}
+				
+				// If I am looking at a space, loop forward
+				// until I see '>' or die if anything else.
 				if (isspace(*file_contents))
 				{
 					*file_contents=0;
@@ -790,23 +862,24 @@ xml_obj_t * parse_xml_content(char * file_contents)
 					if (*file_contents != '>')
 					{
 						// Saw the wrong character, bad XML.
-						printf("Exiting on parse error at line: [%d]\n", __LINE__);
-						debug_print_tree(root_object);
+						printf("Parsing error while searching for '>' in closing tag.\n");
+						print_broken_tree(root_object);
 						free_tree_mem(root_object);
 						return NULL;
 					}
 				}
 				
-				// End of the close tag found.
+				// End of the close tag found. Set it to \0 and
+				// move forward one character.
 				*file_contents++ = 0;
 				
-				// Make sure that the current object is an XML tag. This is guaranteed when popping off the stack, but we didn't
-				// necessarily pop off the stack.
+				// Make sure that the current object is an XML
+				// tag. 
 				if (current_object->obj_type != xml_tag)
 				{
 					// Whut?
-					printf("Tried to parse attributes when not in an 'xml_tag' in file: [%s] at line: [%d].\n", __FILE__, __LINE__);
-					debug_print_tree(root_object);
+					printf("Incorrent object type while parsing closing tag in 'parse_xml_content()'.\n");
+					print_broken_tree(root_object);
 					free_tree_mem(root_object);
 					return NULL;
 				}
@@ -815,8 +888,8 @@ xml_obj_t * parse_xml_content(char * file_contents)
 				if (strcmp(close_name, current_object->xmltag.tagname) != 0)
 				{
 					// Tags don't match.
-					printf("Exiting on parse error at line: [%d]\n", __LINE__);
-					debug_print_tree(root_object);
+					printf("Parse error. Closing tag does not match last opening tag.\n");
+					print_broken_tree(root_object);
 					free_tree_mem(root_object);
 					return NULL;
 				}
@@ -824,23 +897,22 @@ xml_obj_t * parse_xml_content(char * file_contents)
 			else
 			{
 				// Bad formatting, can't parse.
-				// I could set 'errno = X' to make the caller print a useful error.
-				printf("Exiting on parse error at line: [%d]\n", __LINE__);
-				debug_print_tree(root_object);
+				printf("Parse error. Invalid character after '<'.\n");
+				print_broken_tree(root_object);
 				free_tree_mem(root_object);
 				return NULL;
 			}
 		}
 		else
 		{
-			// I'm looking at CONTENT then.
+			// I'm looking at content.
 			if (is_child == 0)
 			{
 				current_object->generic.right = calloc(1, sizeof(xml_obj_t));
 				if (current_object->generic.right == NULL)
 				{
 					// Failed to allocate memory.
-					printf("Failed to allocate memory in file: [%s] at line: [%d]. Error was: %s.\n", __FILE__, __LINE__, strerror(errno));
+					printf("Failed to allocate memory for sibling content in 'parse_xml_content()'.\nThe error was: %s.\n", strerror(errno));
 					free_tree_mem(root_object);
 					return NULL;
 				}
@@ -851,26 +923,27 @@ xml_obj_t * parse_xml_content(char * file_contents)
 			}
 			else
 			{
-				// Make sure the code is sane. This should not happen.
-				// I can't create a child unless I am a tag.
+				// Make sure the code is sane. I can't create
+				// a child unless I am a tag.
 				if (current_object->obj_type != xml_tag)
 				{
-					// Invalid, parser error. Something in the parser broke.
-					printf("Tried to parse attributes when not in an 'xml_tag' in file: [%s] at line: [%d].\n", __FILE__, __LINE__);
-					debug_print_tree(root_object);
+					// Invalid, parser error. Something in
+					// the parser broke.
+					printf("Tried to parse child content when not in an 'xml_tag' object in 'parse_xml_content()'.\n");
+					print_broken_tree(root_object);
 					free_tree_mem(root_object);
 					return NULL;
 				}
 				
-				// We're the child, make sure the next isn't unless reset.
+				// Clear the child state.
 				is_child = 0;
 				
-				// CDATA can very much be a child of a tag.
+				// Allocate memory for the child object.
 				current_object->xmltag.children = calloc(1, sizeof(xml_obj_t));
 				if (current_object->xmltag.children == NULL)
 				{
 					// Failed to allocate memory.
-					printf("Failed to allocate memory in file: [%s] at line: [%d]. Error was: %s.\n", __FILE__, __LINE__, strerror(errno));
+					printf("Failed to allocate memory in for child content in 'parse_xml_content()'.\nThe error was: %s.\n", strerror(errno));
 					free_tree_mem(root_object);
 					return NULL;
 				}
@@ -878,9 +951,10 @@ xml_obj_t * parse_xml_content(char * file_contents)
 				// Push the current object on to the stack.
 				if ((push_stack(current_object)) != 0)
 				{
-					// push_stack returns non-zero on error.
-					printf("Exiting on parse error at line: [%d]\n", __LINE__);
-					debug_print_tree(root_object);
+					// 'push_stack' returns non-zero on
+					// error.
+					printf("Error pushing the child content on to the stack.\n");
+					print_broken_tree(root_object);
 					free_tree_mem(root_object);
 					return NULL;
 				}
@@ -902,15 +976,20 @@ xml_obj_t * parse_xml_content(char * file_contents)
 			{
 				file_contents++;
 			}
+			
+			// I might legitimately hit \0 here, so I don't check
+			// for it.
 		}
 	}
 	
 	return root_object;
 }
 
-// Frees up all the memory.
+// This cleans up by running through the object tree, freeing memory as it
+// goes.
 void free_tree_mem(xml_obj_t * current_object)
 {
+	// Create two attribute pointers and an object pointer.
 	xml_attr_t *current_attr, *next_attr;
 	xml_obj_t *next_obj;
 	
@@ -924,36 +1003,52 @@ void free_tree_mem(xml_obj_t * current_object)
 	// If this is the root, I need to get the pointer to the first child.
 	if (current_object->obj_type == xml_root)
 	{
+		// Got the pointer.
 		next_obj = current_object->xmlroot.children;
+		
+		// Free the memory.
 		free(current_object);
+		
+		// Set 'current_object' to the stored next object.
 		current_object = next_obj;
 	}
 	
-	// For now, this reconstructs.
+	// This travels the tree.
 	while (current_object != NULL)
 	{
+		// If I am looking at a tag, check for attributes.
 		if (current_object->obj_type == xml_tag)
 		{
+			// Tag, see if there is an attribute object.
 			current_attr = current_object->xmltag.attributes;
 			
-			while(current_attr != NULL)
+			// Loop through the first and all linked attribute 
+			// objects, freeing the memory as I go.
+			while (current_attr != NULL)
 			{
+				// Store the next position, free the memory,
+				// then reset 'current_attr' to the next one
+				// in the list.
 				next_attr = current_attr->next;
 				free(current_attr);
 				current_attr = next_attr;
 			}
 			
+			// Done looking for attributes. Free the tag's memory.
 			free_tree_mem(current_object->xmltag.children);
 		}
+		
+		// Record the sibling's pointer, free this object and then step
+		// forward.
 		next_obj = current_object->generic.right;
 		free(current_object);
 		current_object = next_obj;
 	}
 }
 
-// Print the tree. - Debug version. This should duplicate the source file
-// fairly closely if done right.
-void debug_print_tree(xml_obj_t * current_object)
+// This is called when I've exited early. It reconstructs the XML to the point
+// of the error. It's not perfect...
+void print_broken_tree(xml_obj_t * current_object)
 {
 	xml_attr_t *current_attr;
 	
@@ -970,65 +1065,90 @@ void debug_print_tree(xml_obj_t * current_object)
 		current_object = current_object->xmlroot.children;
 	}
 	
-	// For now, this reconstructs.
+	// Walk through the tree.
 	while (current_object != NULL)
 	{
+		// Print CDATA.
 		if (current_object->obj_type == xml_cdata)
 		{
 			printf("<![CDATA[%s]]>", current_object->cdata.xmldata);
 		}
+		
+		// Print content.
 		if (current_object->obj_type == xml_content)
 		{
 			printf("%s", current_object->content.xmldata);
 		}
+		
+		// Print XML tags. This is a bit trickier as there may be zero
+		// or more attribute="value" pairs.
 		if (current_object->obj_type == xml_tag)
 		{
-			
+			// Print the start of the tag.
 			printf("<%s", current_object->xmltag.tagname);
 			
+			// Get the pointer to the first attribute, if any.
 			current_attr = current_object->xmltag.attributes;
 			
-			while(current_attr != NULL)
+			// Walk through the attribute linked list until 'next'
+			// is NULL.
+			while (current_attr != NULL)
 			{
+				// Format the attibute="value" pair.
 				printf(" %s=\"%s\"", current_attr->name, current_attr->value);
+				
+				// And then step right.
 				current_attr = current_attr->next;
 			}
 			
-			if(current_object->xmltag.children==NULL)
+			// There should be no more children, so close up.
+			if (current_object->xmltag.children == NULL)
 			{
 				printf(" />");
 			}
 			else 
 			{
+				// Here is where things went wrong.
 				printf(">");
-				debug_print_tree(current_object->xmltag.children);
-				printf("</%s>", current_object->xmltag.tagname);
+				print_broken_tree(current_object->xmltag.children);
+				// I don't print the closing tag as that might
+				// have been the problem.
 			}
 		}
+		// Step right.
 		current_object = current_object->generic.right;
 	}
 }
 
-// Print the tree. - Actual version.
+// This is the parent function for printing the XML tree in the desired format.
 void print_tree(xml_obj_t * current_object)
 {
+	// I print newlines at the start of strings so that I don't show
+	// useless blank lines in the final output. For this resson, I don't
+	// have a '\n' after the 'START'.
 	printf("START");
+	
+	// Jump in to the recursive printer.
 	print_tree_recursive(current_object, 1, NULL);
+	
+	// Close up.
 	printf("\nEND\n");
 }
 
-
+// This is the recursive portion of the tree printer.
 void print_tree_recursive(xml_obj_t * current_object, int has_tags, char * path)
 {
+	// Set a couple variables to build the double-colon separated chain of
+	// tags (the 'path').
 	xml_attr_t *current_attr;
 	int pathlen;
 	char * newpath;
 	
-	
 	// Do I actually have something?
 	if (current_object == NULL)
 	{
-		// Because this is recursive, it is expected to sometimes be NULL so this isn't an error.
+		// Because this is recursive, it is expected to sometimes be
+		// NULL so this isn't an error.
 		return;
 	}
 	
@@ -1038,101 +1158,132 @@ void print_tree_recursive(xml_obj_t * current_object, int has_tags, char * path)
 		current_object = current_object->xmlroot.children;
 	}
 	
-	// For now, this reconstructs.
+	// Walk through the tree.
 	while (current_object != NULL)
 	{
+		// If the 'has_tags' state variable is '0' then I know I am at
+		// a leaf tag and thus want to print the CONTENT (which may
+		// include CDATA bits).
 		if (has_tags == 0)
 		{
+			// Print CDATA chunks
 			if (current_object->obj_type == xml_cdata)
 			{
 				printf("%s", current_object->cdata.xmldata);
 			}
+			
+			// Print the rest of the content.
 			if (current_object->obj_type == xml_content)
 			{
 				printf("%s", current_object->content.xmldata);
 			}
 		}
+		
+		// If I am looking at a tag, append the 'variable=value' to the
+		// chain of tags.
 		if (current_object->obj_type == xml_tag)
 		{
+			// Get the length of the path.
 			pathlen = strlen(current_object->xmltag.tagname);
-
+			
 			// Allocate or extend the memory for path.
 			if (path == NULL)
 			{
-				newpath = calloc(1, pathlen+1);
-				// TODO: test for null
+				// Start of the path.
+				if ((newpath = calloc(1, pathlen+1)) == NULL)
+				{
+					printf("Failed to allocate memory for 'newpath' in 'print_tree_recursive()'.\nThe error was: %s\n", strerror(errno));
+				}
+				// Copy the tag name on to the path.
 				strcpy(newpath, current_object->xmltag.tagname);
 			}
 			else
 			{
+				// Appending to the path.
 				pathlen += strlen(path) + 2;
-				newpath = calloc(1, pathlen+1);
-				// TODO: test for null
+				if ((newpath = calloc(1, pathlen+1)) == NULL)
+				{
+					printf("Failed to allocate memory when appending 'newpath' in 'print_tree_recursive()'.\nThe error was: %s\n", strerror(errno));
+				}
+				// Print the new extended path.
 				sprintf(newpath, "%s::%s", path,  current_object->xmltag.tagname);
 			}
 			
-			
+			// Print attributes for this tag, if any.
 			current_attr = current_object->xmltag.attributes;
 			
+			// Print the path. Attribute(s) will follow.
 			printf("\n%s", newpath);
-			while(current_attr != NULL)
+			while (current_attr != NULL)
 			{
+				// Print the path and append the attribute
+				// 'name=value' suffix.
 				printf("\n%s::", newpath);
 				printf("%s=%s", current_attr->name, current_attr->value);
+				
+				// Step right in the attribute linked list.
 				current_attr = current_attr->next;
 			}
 			
+			// If I have a child object, I need to recurse into it.
 			if (current_object->xmltag.children != NULL)
 			{
+				// Before I do though, check if I have any
+				// children. If not, this is a leaf tag and I
+				// will want to print the '::CONTENT=' suffix.
+				// The actual content will come in the next
+				// loop.
 				if (current_object->xmltag.has_child_tag == 0)
 				{
-				//	if((current_object->children->obj_type == xml_content) && (current_object->children->generic.right == NULL))
 					printf("\n%s::CONTENT=", newpath);
 				}
 				print_tree_recursive(current_object->xmltag.children, current_object->xmltag.has_child_tag, newpath);
-				//printf("\n");
 			}
+			// Now that I am done, free the 'newpath'. This will be
+			// regenerated with the appropriate path on the next
+			// loop.
 			free(newpath);
 		}
+		// Step to the right.
 		current_object = current_object->generic.right;
 	}
-// 	printf("\n");
 }
 
-
-
-// This goes in to a tag's attribute and sets pointers to the attribute and
-// values. It returns \0 on parsing failure.
+// This function parses an 'attribute="value"' pair in a tag.
 char* parse_attribute_value_pairs(char* file_contents, xml_obj_t* current_object)
 {
-	xml_attr_t *current_attr = NULL;
 	// At this point, I should be looking at the first character in the
 	// attribute name. I will need to set it's pointer.
+	xml_attr_t *current_attr = NULL;
 	
-	// I don't check
-	// 'is_child' because it will always be a child of the tag.
-	
-	// Make sure the code is sane. This should not happen.
-	// I can't create a child unless I am a tag.
+	// Make sure the code is sane. This should not happen. I can't be
+	// parsing attributes unless I am in a tag.
 	if (current_object->obj_type != xml_tag)
 	{
 		// Invalid, parser error. Something in the parser broke.
-		printf("Tried to parse attributes when not in an 'xml_tag' in file: [%s] at line: [%d].\n", __FILE__, __LINE__);
+		printf("Tried to parse attributes when not in an 'xml_tag' in 'parse_attribute_value_pairs()'.\n");
 		return NULL;
 	}
 	
-	// find the last attribute, if first attribte, connect to current_object
+	// If this is the first attribute for the tag, create this attributes
+	// pointer on the tag's 'attribute' pointer. Otherwise, create this
+	// pointer on the last attribute's 'next' pointer.
 	if (current_object->xmltag.attributes == NULL)
 	{
+		// First attribute for the tag.
 		if ((current_attr = calloc(1, sizeof(xml_attr_t))) == NULL)
 		{
 			// unable to allocate memory
+			printf("Failed to allocate memory for the tag's first attribute in 'parse_attribute_value_pairs()'.\nThe error was: %s\n", strerror(errno));
 			return NULL;
 		}
+		// Set the 'current_object' to the newly allocated memory.
 		current_object->xmltag.attributes = current_attr;
 	}
 	else
 	{
+		// Not the first attribute. Allocate the memory on the last
+		// attribute's 'next' pointer.
 		current_attr = current_object->xmltag.attributes;
 		while(current_attr->next != NULL)
 		{
@@ -1142,15 +1293,18 @@ char* parse_attribute_value_pairs(char* file_contents, xml_obj_t* current_object
 		if ((current_attr->next = calloc(1, sizeof(xml_attr_t))) == NULL)
 		{
 			// unable to allocate memory
+			printf("Failed to allocate memory for the tag's next attribute in 'parse_attribute_value_pairs()'.\nThe error was: %s\n", strerror(errno));
 			return NULL;
 		}
+		// and switch to it.
 		current_attr = current_attr->next;	
 	}
 	
-	
-	// I need to set 'xml_attr_t.name' to '*file_contents'
+	// 'file_contents' points to the start of the attribute name. Copy it's
+	// pointer to 'name',
 	current_attr->name = file_contents;
 	
+	// Now loop while I see valid attribute name characters.
 	while ((*file_contents != 0) && (*file_contents != '=') && 
 		((*file_contents == '.') || (*file_contents == '_') || (*file_contents == '-') || (isalnum(*file_contents))))
 	{
@@ -1177,8 +1331,7 @@ char* parse_attribute_value_pairs(char* file_contents, xml_obj_t* current_object
 	else
 	{
 		// Bad formatting.
-		printf("current_object: [%s]\n", current_object->xmltag.tagname);
-		printf("I didn't see an equal sign while parsing attribute/value pairs in tag. Saw: [%c]. In file: [%s] at line: [%d].\n", *file_contents, __FILE__, __LINE__);
+		printf("I didn't see an equal sign while parsing attribute/value pairs in 'parse_attribute_value_pairs()'.\n");
 		return NULL;
 	}
 	
@@ -1189,11 +1342,11 @@ char* parse_attribute_value_pairs(char* file_contents, xml_obj_t* current_object
 		file_contents++;
 	}
 	
-	// Make sure I am now looking at a double-quote.
+	// Make sure I am now looking at the opening double-quote.
 	if (*file_contents != '"')
 	{
 		// Bad formatting.
-		printf("I didn't see a leading double-quote while parsing attribute value in file: [%s] at line: [%d].\n", __FILE__, __LINE__);
+		printf("I didn't see the leading double-quote while parsing attribute's value in 'parse_attribute_value_pairs()'.\n");
 		return NULL;
 	}
 	
@@ -1217,12 +1370,9 @@ char* parse_attribute_value_pairs(char* file_contents, xml_obj_t* current_object
 	else
 	{
 		// Bad formatting.
-		printf("I didn't see closing double-quote in file: [%s] at line: [%d].\n", __FILE__, __LINE__);
+		printf("I didn't see closing double-quote in 'parse_attribute_value_pairs()'.\n");
 		return NULL;
 	}
-	
-	// Now where do I store the 
-// 	printf("Read attribute name: [%s] with value: [%s]\n", current_attr->name, current_attr->value);
 	
 	// All done!
 	return file_contents;

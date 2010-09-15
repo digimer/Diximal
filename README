@@ -38,7 +38,8 @@ The output from 'diximal' will use the following structure:
 - Data inside of <![CDATA[...]]> blocks will be left alone.
 
 - Values stored inside of '<foo ...></foo>' tags will be displayed using the
-  special '::CONTENT=string' suffix.
+  special '::CONTENT=string' suffix. These are only shown for leaf tags. That
+  is, tags without child tags.
 
 
 =] Example
@@ -258,3 +259,19 @@ words::lang::key::name=テス_0000
 words::lang::key::CONTENT=代りのテスト: [#!var!0!#]。
 END
 -------------------------------------------------------------------------------
+
+Exit codes:
+  0 = Successful parse.
+ -1 = No filename passed. Nothing to parse.
+ -2 = Unexpected error while parsing command-line arguments.
+ -3 = Unable to allocate enough memory for the tag stack.
+ -4 = No file passed, nothing to parse.
+ -5 = Failed to open the XML file for reading.
+ -6 = Failed to call 'stat' on the XML file.
+ -7 = Failed to allocate memory for the contents of the XML file.
+ -8 = Failed to read the XML file into memory.
+ -9 = There was an error while trying to strip comments and processing
+      instructions from the XML data.
+-10 = There was an error while parsing the XML data. Additional information
+      on the failure, plus the reconstructions of the XML to the point of the
+      failure, will be printed.
