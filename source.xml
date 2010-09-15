@@ -19,7 +19,7 @@
 		- weight="#"; This sets the DLM lock directory weight. This is
 		              a DLM kernel option.
 		-->
-		<clusternode name="an-node01.alteeve.com" nodeid="1">
+		<clusternode name =  	 "an-node01.alteeve.com" nodeid="1">
 			<altname name="an-node01-sn" port="6899" 
 							mcast="239.94.1.1" />
 			<!-- Fence Devices attached to this node. -->
@@ -53,7 +53,7 @@
 		This names the device, the agent (script) to controls it,
 		where to find it and how to access it.
 		-->
-		<fencedevice name="batou" agent     =	 "fence_na" 
+		<fencedevice _n-a_m.e="batou" agent     =	 "fence_na" 
 			ipaddr="batou.alteeve.com"  login="section9" 
 			passwd="project2501" quiet="1"></fencedevice>
 		<fencedevice name="motoko" agent="fence_na" 
