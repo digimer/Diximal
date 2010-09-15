@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
 	if ((root = parse_xml_content(file_contents)) == NULL)
 	{
 		// I could use errno.
-		printf("\n\nParsing error!\nThe above XML represents what I successfully parsed.\nPlease see the top of the XML output for a more detailed error.\n\n");
+		printf("\n\nERROR\nThe above XML represents what I successfully parsed.\nPlease see the top of the XML output for a more detailed error.\n\n");
 		return -10;
 	}
 	
